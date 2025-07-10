@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HL7 Healthlink Message Generator</title>
+    <!-- Tailwind CSS CDN for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- JSZip CDN for creating ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        /* Apply Inter font to the body */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for XML syntax highlighting, complementing Tailwind */
+        .xml-code .tag {
+            color: #81c784; /* Green for tags */
+        }
+        .xml-code .attribute {
+            color: #ffb74d; /* Orange for attributes */
+        }
+        .xml-code .value {
+            color: #64b5f6; /* Blue for attribute values */
+        }
+        /* Spinner animation for loading state */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner {
+            border-top-color: #3498db; /* Blue spinner color */
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen p-5">
+    <div class="container mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+        <!-- Header Section -->
+        <div class="bg-gradient-to-br from-gray-800 to-blue-500 text-white p-8 text-center rounded-t-xl">
+            <h1 class="text-4xl font-light mb-2">HL7 Healthlink Message Generator</h1>
+            <p class="opacity-90 text-lg">Generate sample Radiology and Blood Test Referral messages in HL7 format</p>
+        </div>
+        
+        <div class="p-8">
+            <!-- Statistics Section -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
+                    <div id="radiologyCount" class="text-4xl font-bold mb-1">0</div>
+                    <div class="text-opacity-90">Radiology Messages</div>
+                </div>
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
+                    <div id="bloodTestCount" class="text-4xl font-bold mb-1">0</div>
+                    <div class="text-opacity-90">Blood Test Messages</div>
+                </div>
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
+                    <div id="totalCount" class="text-4xl font-bold mb-1">0</div>
+                    <div class="text-opacity-90">Total Generated</div>
+                </div>
+            </div>
+            
+            <!-- Controls Section -->
+            <div class="flex flex-wrap gap-5 mb-8">
+                <div class="flex-1 min-w-[200px]">
+                    <label for="messageType" class="block text-gray-700 font-semibold mb-2">Message Type:</label>
+                    <select id="messageType" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:outline-none focus:border-blue-500 transition duration-300">
+                        <option value="radiology">Radiology Referral</option>
+                        <option value="bloodtest">Blood Test Referral</option>
+                    </select>
+                </div>
+                
+                <div class="flex-1 min-w-[200px]">
+                    <label for="messageCount" class="block text-gray-700 font-semibold mb-2">Number of Messages:</label>
+                    <select id="messageCount" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:outline-none focus:border-blue-500 transition duration-300">
+                        <option value="1">1</option>
+                        <option value="3" selected>3</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                    </select>
+                </div>
+                
+                <div class="flex-1 min-w-[200px]">
+                    <label for="hospitalName" class="block text-gray-700 font-semibold mb-2">Hospital Name:</label>
+                    <input type="text" id="hospitalName" value="NAAS GENERAL HOSPITAL" placeholder="Enter hospital name" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:outline-none focus:border-blue-500 transition duration-300">
+                </div>
+                
+                <div class="flex-1 min-w-[200px] flex items-end">
+                    <button class="generate-btn w-full bg-gradient-to-br from-green-500 to-emerald-600 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-1 transition duration-300" onclick="generateMessages()">Generate Messages</button>
+                </div>
+                <div class="flex-1 min-w-[200px] flex items-end">
+                    <button id="downloadAllBtn" class="w-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-1 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" onclick="downloadAllAsZip()" disabled>Download All as ZIP</button>
+                </div>
+            </div>
+            
+            <!-- Output Section for generated messages -->
+            <div id="output" class="output-section"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global counters for statistics
+        let radiologyCount = 0;
+        let bloodTestCount = 0;
+        let totalCount = 0;
+
+        // Global array to store generated XML messages in memory
+        // Each item will be an object: { content: xmlString, filename: string }
+        let generatedMessages = [];
+
+        /**
+         * Updates the displayed statistics (radiology, blood test, and total counts).
+         */
+        function updateStats() {
+            document.getElementById('radiologyCount').textContent = radiologyCount;
+            document.getElementById('bloodTestCount').textContent = bloodTestCount;
+            document.getElementById('totalCount').textContent = totalCount;
+            // Enable or disable the download all button based on whether messages exist
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            if (totalCount > 0) {
+                downloadAllBtn.removeAttribute('disabled');
+            } else {
+                downloadAllBtn.setAttribute('disabled', 'true');
+            }
+        }
+
+        /**
+         * Generates a random alphanumeric ID of a specified length.
+         * @param {number} length - The desired length of the ID.
+         * @returns {string} A random ID.
+         */
+        function generateRandomId(length = 9) {
+            return Math.random().toString(36).substr(2, length).toUpperCase();
+        }
+
+        /**
+         * Generates a random integer between a minimum and maximum value (inclusive).
+         * @param {number} min - The minimum value.
+         * @param {number} max - The maximum value.
+         * @returns {number} A random integer.
+         */
+        function generateRandomNumber(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Generates a random birth date for a patient within a specified age range.
+         * The date is formatted as YYYYMMDD.
+         * @param {number} minAge - Minimum age for the patient.
+         * @param {number} maxAge - Maximum age for the patient.
+         * @returns {string} The birth date in YYYYMMDD format.
+         */
+        function generateRandomDate(minAge = 18, maxAge = 90) {
+            const today = new Date();
+            const birthYear = today.getFullYear() - generateRandomNumber(minAge, maxAge);
+            const birthMonth = generateRandomNumber(1, 12);
+            const birthDay = generateRandomNumber(1, 28); // Using 28 to avoid issues with month lengths
+            return `${birthYear}${String(birthMonth).padStart(2, '0')}${String(birthDay).padStart(2, '0')}`;
+        }
+
+        /**
+         * Generates a random date and time string formatted as YYYYMMDDHHMMSS.
+         * @returns {string} The current date and time in YYYYMMDDHHMMSS format.
+         */
+        function generateRandomDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}${hours}${minutes}${seconds}`;
+        }
+
+        /**
+         * Generates random patient demographic data, ensuring gender and first name correlation.
+         * @returns {object} An object containing patient details.
+         */
+        function generateRandomPatient() {
+            const maleFirstNames = ['JOHN', 'DAVID', 'MICHAEL', 'ROBERT', 'WILLIAM', 'JAMES', 'LIAM', 'NOAH', 'CONOR', 'SEAN', 'BRENDAN'];
+            const femaleFirstNames = ['MARY', 'SARAH', 'EMMA', 'OLIVIA', 'SOPHIA', 'ISABELLA', 'KATARZYNA', 'PATRICIA', 'ANNA', 'AOIFE', 'NIAMH', 'ORLA', 'FIONA'];
+            const lastNames = ['SMITH', 'JOHNSON', 'WILLIAMS', 'BROWN', 'JONES', 'GARCIA', 'MILLER', 'DAVIS', 'RODRIGUEZ', 'MARTINEZ', 'HERNANDEZ', 'LOPEZ', 'GONZALEZ', 'WILSON', 'WALSH', 'BYRNE', 'MURPHY', 'KELLY', 'RYAN', 'HEALY', 'O\'CONNELL', 'DOYLE', 'BURKE'];
+            const counties = ['DUBLIN', 'CORK', 'GALWAY', 'CLARE', 'KERRY', 'LIMERICK', 'WATERFORD', 'TIPPERARY', 'WEXFORD', 'WICKLOW', 'MEATH', 'KILDARE', 'LAOIS', 'OFFALY'];
+            const streetTypes = ['Street', 'Road', 'Avenue', 'Lane', 'Close', 'Drive', 'Place', 'Court'];
+            
+            const gender = Math.random() < 0.5 ? 'M' : 'F';
+            let firstName;
+
+            if (gender === 'M') {
+                firstName = maleFirstNames[Math.floor(Math.random() * maleFirstNames.length)];
+            } else {
+                firstName = femaleFirstNames[Math.floor(Math.random() * femaleFirstNames.length)];
+            }
+
+            return {
+                id: 'P' + generateRandomNumber(100000, 999999), // Patient ID
+                firstName: firstName,
+                lastName: lastNames[Math.floor(Math.random() * lastNames.length)],
+                gender: gender,
+                birthDate: generateRandomDate(),
+                phone: `0${generateRandomNumber(1, 9)} ${String(generateRandomNumber(100, 999)).padStart(3, '0')} ${String(generateRandomNumber(1000, 9999)).padStart(4, '0')}`, // Example Irish landline
+                mobile: `08${generateRandomNumber(3, 9)} ${String(generateRandomNumber(1000000, 9999999)).padStart(7, '0')}`, // Example Irish mobile
+                address: `${generateRandomNumber(1, 150)} ${lastNames[Math.floor(Math.random() * lastNames.length)]} ${streetTypes[Math.floor(Math.random() * streetTypes.length)]}`,
+                city: `${counties[Math.floor(Math.random() * counties.length)]} Town`, 
+                county: counties[Math.floor(Math.random() * counties.length)],
+                postcode: `D${String(generateRandomNumber(1, 24)).padStart(2, '0')} A${String(generateRandomNumber(10, 99)).padStart(2, '0')}` // Example Irish postcode format
+            };
+        }
+
+        /**
+         * Generates random healthcare provider data.
+         * @returns {object} An object containing provider details.
+         */
+        function generateRandomProvider() {
+            const titles = ['Dr.', 'Prof.'];
+            const firstNames = ['Liam', 'Aoife', 'Conor', 'Niamh', 'Sean', 'Orla', 'Fiona', 'Brendan', 'Ciara', 'Darragh', 'Eimear', 'Fergal'];
+            const lastNames = ['O\'Connell', 'Murphy', 'Kelly', 'Byrne', 'Ryan', 'Walsh', 'Doyle', 'Burke', 'Fitzgerald', 'Gallagher', 'Lynch', 'Moore'];
+            const specialties = ['GP', 'Radiologist', 'Pathologist', 'Consultant Physician', 'Surgeon', 'Oncologist', 'Cardiologist', 'Neurologist'];
+
+            return {
+                id: 'PR' + generateRandomNumber(1000, 9999),
+                lastName: lastNames[Math.floor(Math.random() * lastNames.length)],
+                firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
+                title: titles[Math.floor(Math.random() * titles.length)],
+                specialty: specialties[Math.floor(Math.random() * specialties.length)]
+            };
+        }
+
+        /**
+         * Generates an HL7 ORM_O01 message for a Radiology Referral.
+         * Includes MSH, PID, PV1, ORC, and OBR segments with random data.
+         * @param {object} patient - Patient data.
+         * @param {string} hospital - Hospital name.
+         * @returns {string} The HL7 XML message.
+         */
+        function generateRadiologyMessage(patient, hospital) {
+            const examTypes = [
+                {code: 'CXR', name: 'Chest X-Ray', reason: 'Persistent cough, rule out pneumonia.', loinc: '20509-3'},
+                {code: 'CTH', name: 'CT Head', reason: 'Sudden onset severe headache, rule out bleed.', loinc: '87449-1'},
+                {code: 'MRI', name: 'MRI Lumbar Spine', reason: 'Chronic lower back pain with radiculopathy.', loinc: '20275-1'},
+                {code: 'USS', name: 'Ultrasound Abdomen', reason: 'Right upper quadrant pain, suspected gallstones.', loinc: '17926-2'},
+                {code: 'XRK', name: 'X-Ray Knee', reason: 'Acute knee injury post fall, assess for fracture.', loinc: '18029-4'},
+                {code: 'MAMMO', name: 'Mammogram', reason: 'Breast lump for further investigation.', loinc: '24606-5'},
+                {code: 'CTAB', name: 'CT Abdomen/Pelvis', reason: 'Unexplained weight loss and abdominal discomfort.', loinc: '87448-3'},
+                {code: 'CTCH', name: 'CT Chest', reason: 'Follow-up for lung nodule.', loinc: '26248-4'},
+                {code: 'MRIA', name: 'MRI Ankle', reason: 'Ankle pain and swelling after sports injury.', loinc: '20272-8'}
+            ];
+            
+            const exam = examTypes[Math.floor(Math.random() * examTypes.length)];
+            const messageId = generateRandomDateTime() + generateRandomId(3); // Unique message ID
+            const placerOrderNumber = 'RAD' + generateRandomId(10); // Order ID from ordering system
+            const fillerOrderNumber = ''; // Filler order number assigned by performing system
+            const orderingProvider = generateRandomProvider();
+            
+            return `<!-- HL7 ORM_O01 Message for Radiology Referral -->
+<ORM_O01>
+    <MSH>
+        <MSH.1>|</MSH.1>
+        <MSH.2>^~\\&amp;</MSH.2>
+        <MSH.3><HD.1>ORDERING_APP</HD.1></MSH.3>
+        <MSH.4><HD.1>${hospital}</HD.1><HD.2>921</HD.2><HD.3>HIPE</HD.3></MSH.4>
+        <MSH.5><HD.1>HealthLink</HD.1></MSH.5>
+        <MSH.6><HD.1>HSE</HD.1></MSH.6>
+        <MSH.7><TS.1>${generateRandomDateTime()}</TS.1></MSH.7>
+        <MSH.8/>
+        <MSH.9><MSG.1>ORM</MSG.1><MSG.2>O01</MSG.2><MSG.3>ORM_O01</MSG.3></MSH.9>
+        <MSH.10>${messageId}</MSH.10>
+        <MSH.11><PT.1>P</PT.1></MSH.11>
+        <MSH.12><VID.1>2.4</VID.1></MSH.12>
+    </MSH>
+    <ORM_O01.PATIENT>
+        <PID>
+            <PID.3><CX.1>${patient.id}</CX.1><CX.4><HD.1>${hospital}</HD.1></CX.4><CX.5>MRN</CX.5></PID.3>
+            <PID.5><XPN.1><FN.1>${patient.lastName}</FN.1></XPN.1><XPN.2>${patient.firstName}</XPN.2></PID.5>
+            <PID.7><TS.1>${patient.birthDate}</TS.1></PID.7>
+            <PID.8>${patient.gender}</PID.8>
+            <PID.11>
+                <XAD.1><SAD.1>${patient.address}</SAD.1></XAD.1>
+                <XAD.2>${patient.city}</XAD.2>
+                <XAD.3>${patient.county}</XAD.3>
+                <XAD.4>${patient.county}</XAD.4>
+                <XAD.5>${patient.postcode}</XAD.5>
+            </PID.11>
+            <PID.13><XTN.1>${patient.phone}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>PH</XTN.3></PID.13>
+            <PID.13><XTN.1>${patient.mobile}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>CP</XTN.3></PID.13>
+        </PID>
+        <ORM_O01.PATIENT_VISIT>
+            <PV1>
+                <PV1.2>O</PV1.2>
+                <PV1.3><PL.1>RADIOLOGY</PL.1><PL.9>Radiology Department</PL.9></PV1.3>
+            </PV1>
+        </ORM_O01.PATIENT_VISIT>
+    </ORM_O01.PATIENT>
+    <ORM_O01.ORDER>
+        <ORC>
+            <ORC.1>NW</ORC.1>
+            <ORC.2><EI.1>${placerOrderNumber}</EI.1></ORC.2>
+            <ORC.3><EI.1>${fillerOrderNumber}</EI.1></ORC.3>
+            <ORC.9><TS.1>${generateRandomDateTime()}</TS.1></ORC.9>
+            <ORC.12>
+                <XCN.1>${orderingProvider.id}</XCN.1>
+                <XCN.2>${orderingProvider.lastName}</XCN.2>
+                <XCN.3>${orderingProvider.firstName}</XCN.3>
+                <XCN.4>${orderingProvider.title}</XCN.4>
+                <XCN.9>${orderingProvider.specialty}</XCN.9>
+            </ORC.12>
+        </ORC>
+        <ORM_O01.ORDER_DETAIL>
+            <OBR>
+                <OBR.1>1</OBR.1>
+                <OBR.2><EI.1>${placerOrderNumber}</EI.1></OBR.2>
+                <OBR.3><EI.1>${fillerOrderNumber}</EI.1></OBR.3>
+                <OBR.4><CE.1>${exam.loinc}</CE.1><CE.2>${exam.name}</CE.2><CE.3>LN</CE.3><CE.4>${exam.code}</CE.4></OBR.4>
+                <OBR.6>R</OBR.6>
+                <OBR.7><TS.1>${generateRandomDateTime()}</TS.1></OBR.7>
+                <OBR.13><CE.1>CLINICAL_INDICATION</CE.1><CE.2>${exam.reason}</CE.2><CE.3>L</CE.3></OBR.13>
+                <OBR.16>
+                    <XCN.1>${orderingProvider.id}</XCN.1>
+                    <XCN.2>${orderingProvider.lastName}</XCN.2>
+                    <XCN.3>${orderingProvider.firstName}</XCN.3>
+                    <XCN.4>${orderingProvider.title}</XCN.4>
+                    <XCN.9>${orderingProvider.specialty}</XCN.9>
+                </OBR.16>
+                <OBR.24>RAD</OBR.24>
+            </OBR>
+        </ORM_O01.ORDER_DETAIL>
+    </ORM_O01.ORDER>
+</ORM_O01>`;
+        }
+
+        /**
+         * Generates an HL7 ORM_O01 message for a Blood Test Referral.
+         * Includes MSH, PID, PV1, ORC, and OBR segments with random data.
+         * @param {object} patient - Patient data.
+         * @param {string} hospital - Hospital name.
+         * @returns {string} The HL7 XML message.
+         */
+        function generateBloodTestMessage(patient, hospital) {
+            const testTypes = [
+                {code: 'FBC', name: 'Full Blood Count', reason: 'Routine health check, assess for anemia.', loinc: '30313-1'},
+                {code: 'LFT', name: 'Liver Function Tests', reason: 'Investigate abnormal liver enzymes.', loinc: '24323-7'},
+                {code: 'U&E', name: 'Urea and Electrolytes', reason: 'Assess renal function and electrolyte balance.', loinc: '14930-0'},
+                {code: 'TFT', name: 'Thyroid Function Tests', reason: 'Symptoms of fatigue and weight changes, rule out thyroid dysfunction.', loinc: '83099-2'},
+                {code: 'LIPID', name: 'Lipid Profile', reason: 'Cardiovascular risk assessment, family history of hyperlipidemia.', loinc: '2093-3'},
+                {code: 'GLUC', name: 'Fasting Glucose', reason: 'Screening for diabetes, history of pre-diabetes.', loinc: '15074-6'},
+                {code: 'CRP', name: 'C-Reactive Protein', reason: 'Investigate inflammation, suspected infection.', loinc: '1988-5'},
+                {code: 'HbA1c', name: 'Glycated Hemoglobin (HbA1c)', reason: 'Monitoring glycemic control in diabetic patient.', loinc: '4548-4'},
+                {code: 'VITD', name: 'Vitamin D', reason: 'Assess vitamin D deficiency, fatigue.', loinc: '1989-3'}
+            ];
+            
+            const test = testTypes[Math.floor(Math.random() * testTypes.length)];
+            const messageId = generateRandomDateTime() + generateRandomId(3);
+            const placerOrderNumber = 'LAB' + generateRandomId(10);
+            const fillerOrderNumber = '';
+            const orderingProvider = generateRandomProvider();
+            
+            return `<!-- HL7 ORM_O01 Message for Blood Test Referral -->
+<ORM_O01>
+    <MSH>
+        <MSH.1>|</MSH.1>
+        <MSH.2>^~\\&amp;</MSH.2>
+        <MSH.3><HD.1>ORDERING_APP</HD.1></MSH.3>
+        <MSH.4><HD.1>${hospital}</HD.1><HD.2>921</HD.2><HD.3>HIPE</HD.3></MSH.4>
+        <MSH.5><HD.1>HealthLink</HD.1></MSH.5>
+        <MSH.6><HD.1>HSE</HD.1></MSH.6>
+        <MSH.7><TS.1>${generateRandomDateTime()}</TS.1></MSH.7>
+        <MSH.8/>
+        <MSH.9><MSG.1>ORM</MSG.1><MSG.2>O01</MSG.2><MSG.3>ORM_O01</MSG.3></MSH.9>
+        <MSH.10>${messageId}</MSH.10>
+        <MSH.11><PT.1>P</PT.1></MSH.11>
+        <MSH.12><VID.1>2.4</VID.1></MSH.12>
+    </MSH>
+    <ORM_O01.PATIENT>
+        <PID>
+            <PID.3><CX.1>${patient.id}</CX.1><CX.4><HD.1>${hospital}</HD.1></CX.4><CX.5>MRN</CX.5></PID.3>
+            <PID.5><XPN.1><FN.1>${patient.lastName}</FN.1></XPN.1><XPN.2>${patient.firstName}</XPN.2></PID.5>
+            <PID.7><TS.1>${patient.birthDate}</TS.1></PID.7>
+            <PID.8>${patient.gender}</PID.8>
+            <PID.11>
+                <XAD.1><SAD.1>${patient.address}</SAD.1></XAD.1>
+                <XAD.2>${patient.city}</XAD.2>
+                <XAD.3>${patient.county}</XAD.3>
+                <XAD.4>${patient.county}</XAD.4>
+                <XAD.5>${patient.postcode}</XAD.5>
+            </PID.11>
+            <PID.13><XTN.1>${patient.phone}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>PH</XTN.3></PID.13>
+            <PID.13><XTN.1>${patient.mobile}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>CP</XTN.3></PID.13>
+        </PID>
+        <ORM_O01.PATIENT_VISIT>
+            <PV1>
+                <PV1.2>O</PV1.2>
+                <PV1.3><PL.1>LABORATORY</PL.1><PL.9>Laboratory Department</PL.9></PV1.3>
+            </PV1>
+        </ORM_O01.PATIENT_VISIT>
+    </ORM_O01.PATIENT>
+    <ORM_O01.ORDER>
+        <ORC>
+            <ORC.1>NW</ORC.1>
+            <ORC.2><EI.1>${placerOrderNumber}</EI.1></ORC.2>
+            <ORC.3><EI.1>${fillerOrderNumber}</EI.1></ORC.3>
+            <ORC.9><TS.1>${generateRandomDateTime()}</TS.1></ORC.9>
+            <ORC.12>
+                <XCN.1>${orderingProvider.id}</XCN.1>
+                <XCN.2>${orderingProvider.lastName}</XCN.2>
+                <XCN.3>${orderingProvider.firstName}</XCN.3>
+                <XCN.4>${orderingProvider.title}</XCN.4>
+                <XCN.9>${orderingProvider.specialty}</XCN.9>
+            </ORC.12>
+        </ORC>
+        <ORM_O01.ORDER_DETAIL>
+            <OBR>
+                <OBR.1>1</OBR.1>
+                <OBR.2><EI.1>${placerOrderNumber}</EI.1></OBR.2>
+                <OBR.3><EI.1>${fillerOrderNumber}</EI.1></OBR.3>
+                <OBR.4><CE.1>${test.loinc}</CE.1><CE.2>${test.name}</CE.2><CE.3>LN</CE.3><CE.4>${test.code}</CE.4></OBR.4>
+                <OBR.6>R</OBR.6>
+                <OBR.7><TS.1>${generateRandomDateTime()}</TS.1></OBR.7>
+                <OBR.13><CE.1>CLINICAL_INDICATION</CE.1><CE.2>${test.reason}</CE.2><CE.3>L</CE.3></OBR.13>
+                <OBR.16>
+                    <XCN.1>${orderingProvider.id}</XCN.1>
+                    <XCN.2>${orderingProvider.lastName}</XCN.2>
+                    <XCN.3>${orderingProvider.firstName}</XCN.3>
+                    <XCN.4>${orderingProvider.title}</XCN.4>
+                    <XCN.9>${orderingProvider.specialty}</XCN.9>
+                </OBR.16>
+                <OBR.24>LAB</OBR.24>
+            </OBR>
+        </ORM_O01.ORDER_DETAIL>
+    </ORM_O01.ORDER>
+</ORM_O01>`;
+        }
+
+        /**
+         * Highlights XML syntax for better readability in the preview.
+         * @param {string} xml - The XML string to highlight.
+         * @returns {string} The HTML string with highlighted XML.
+         */
+        function highlightXML(xml) {
+            return xml
+                .replace(/&/g, '&amp;') // Escape ampersands first
+                .replace(/</g, '&lt;')   // Escape less-than signs
+                .replace(/>/g, '&gt;')   // Escape greater-than signs
+                // Highlight tags: <tag> or </tag>
+                .replace(/(&lt;\/?)([^&amp;\s]+)(&gt;)/g, '<span class="tag">$1$2$3</span>')
+                // Highlight attributes and their values: attribute="value"
+                .replace(/(&lt;[^&amp;]*?\s)([^=\s]+)(=)(&quot;.*?&quot;|\'.*?\')(&gt;)/g, '$1<span class="attribute">$2</span>$3<span class="value">$4</span>$5')
+                // Handle attributes without quotes (less common in well-formed XML but for robustness)
+                .replace(/(&lt;[^&amp;]*?\s)([^=\s]+)(=)([^\s&amp;&gt;]+)(&gt;)/g, '$1<span class="attribute">$2</span>$3<span class="value">$4</span>$5');
+        }
+
+        /**
+         * Downloads the XML content stored at a specific index in the generatedMessages array.
+         * @param {number} index - The index of the XML content in the generatedMessages array.
+         * @param {string} filename - The desired filename for the downloaded file.
+         */
+        function downloadXMLByIndex(index) {
+            const messageData = generatedMessages[index];
+            if (messageData && messageData.content && messageData.filename) {
+                const blob = new Blob([messageData.content], { type: 'application/xml' });
+                saveAs(blob, messageData.filename); // Using FileSaver.js
+            } else {
+                console.error('Error: XML content or filename not found for index:', index);
+            }
+        }
+
+        /**
+         * Downloads all generated XML files as a single ZIP archive.
+         */
+        async function downloadAllAsZip() {
+            if (generatedMessages.length === 0) {
+                console.warn('No messages to download.');
+                return;
+            }
+
+            const zip = new JSZip();
+            generatedMessages.forEach(messageData => {
+                if (messageData.content && messageData.filename) {
+                    zip.file(messageData.filename, messageData.content);
+                }
+            });
+
+            // Generate the ZIP file
+            const zipFileName = `HL7_Messages_${generateRandomDateTime()}.zip`;
+            
+            try {
+                const blob = await zip.generateAsync({ type: "blob" });
+                saveAs(blob, zipFileName); // Using FileSaver.js
+            } catch (error) {
+                console.error("Error generating ZIP file:", error);
+                // You could add a user-friendly error message here
+            }
+        }
+
+        /**
+         * Generates HL7 messages based on user selections (type and count).
+         * Displays a loading spinner while generating and then the messages.
+         */
+        function generateMessages() {
+            const messageType = document.getElementById('messageType').value;
+            const messageCount = parseInt(document.getElementById('messageCount').value);
+            const hospital = document.getElementById('hospitalName').value || 'NAAS GENERAL HOSPITAL';
+            const output = document.getElementById('output');
+            
+            // Clear previous messages and reset the global array for new generation
+            generatedMessages = []; 
+            radiologyCount = 0;
+            bloodTestCount = 0;
+            totalCount = 0;
+            updateStats(); // Update stats to 0 immediately and disable button
+
+            // Show loading spinner and message
+            output.innerHTML = `
+                <div class="loading text-center p-10 text-gray-600">
+                    <div class="spinner w-10 h-10 border-4 border-gray-200 rounded-full mx-auto mb-4"></div>
+                    <p>Generating ${messageCount} ${messageType} message(s)...</p>
+                </div>
+            `;
+            
+            // Simulate a delay for generation and then display messages
+            setTimeout(() => {
+                let html = '';
+                
+                for (let i = 0; i < messageCount; i++) {
+                    const patient = generateRandomPatient();
+                    let xmlContent;
+                    let messageTitle;
+                    
+                    if (messageType === 'radiology') {
+                        xmlContent = generateRadiologyMessage(patient, hospital);
+                        messageTitle = `Radiology Referral - ${patient.lastName}, ${patient.firstName}`;
+                        radiologyCount++;
+                    } else { // messageType === 'bloodtest'
+                        xmlContent = generateBloodTestMessage(patient, hospital);
+                        messageTitle = `Blood Test Referral - ${patient.lastName}, ${patient.firstName}`;
+                        bloodTestCount++;
+                    }
+                    
+                    totalCount++;
+                    
+                    // Create a unique filename for each message
+                    const filename = `${messageType}_referral_${patient.id}_${Date.now()}.xml`;
+
+                    // Store the XML content and its filename as an object
+                    const messageIndex = generatedMessages.push({ content: xmlContent, filename: filename }) - 1;
+                    
+                    html += `
+                        <div class="message-card bg-gray-50 border border-gray-200 rounded-lg mb-5 overflow-hidden shadow-md">
+                            <div class="message-header bg-gray-700 text-white p-4 flex justify-between items-center rounded-t-lg">
+                                <div class="message-title font-semibold text-lg">${messageTitle}</div>
+                                <button class="download-btn bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-4 rounded-md text-sm transition duration-300" 
+                                        onclick="downloadXMLByIndex(${messageIndex})">
+                                    Download XML
+                                </button>
+                            </div>
+                            <div class="message-content p-5">
+                                <div class="xml-code bg-gray-800 text-gray-200 p-5 rounded-md font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                                    ${highlightXML(xmlContent)}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                output.innerHTML = html; // Display all generated messages
+                updateStats(); // Update statistics after generation and enable/disable button
+            }, 1000); // 1 second delay for demonstration
+        }
+
+        // Initialize statistics and generate initial messages when the page loads
+        updateStats();
+        generateMessages();
+    </script>
+</body>
+</html>
