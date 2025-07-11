@@ -43,24 +43,29 @@
         <!-- Header Section -->
         <div class="bg-gradient-to-br from-gray-800 to-blue-500 text-white p-8 text-center rounded-t-xl">
             <h1 class="text-4xl font-light mb-2">HL7 Healthlink Message Generator</h1>
-            <p class="opacity-90 text-lg">Generate sample Radiology and Blood Test Referral messages in HL7 format</p>
+            <p class="opacity-90 text-lg">Generate sample Radiology, MRI, Endoscopy, and Blood Test Referral messages in HL7 format</p>
         </div>
         
         <div class="p-8">
             <!-- Statistics Section -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
                 <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
                     <div id="radiologyCount" class="text-4xl font-bold mb-1">0</div>
                     <div class="text-opacity-90">Radiology Messages</div>
                 </div>
                 <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
+                    <div id="mriCount" class="text-4xl font-bold mb-1">0</div>
+                    <div class="text-opacity-90">MRI Messages</div>
+                </div>
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
+                    <div id="endoscopyCount" class="text-4xl font-bold mb-1">0</div>
+                    <div class="text-opacity-90">Endoscopy Messages</div>
+                </div>
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
                     <div id="bloodTestCount" class="text-4xl font-bold mb-1">0</div>
                     <div class="text-opacity-90">Blood Test Messages</div>
                 </div>
-                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-lg text-center shadow-lg">
-                    <div id="totalCount" class="text-4xl font-bold mb-1">0</div>
-                    <div class="text-opacity-90">Total Generated</div>
-                </div>
+                <!-- Total count can still be shown if desired, but these specific counts are more useful -->
             </div>
             
             <!-- Controls Section -->
@@ -68,8 +73,10 @@
                 <div class="flex-1 min-w-[200px]">
                     <label for="messageType" class="block text-gray-700 font-semibold mb-2">Message Type:</label>
                     <select id="messageType" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:outline-none focus:border-blue-500 transition duration-300">
-                        <option value="radiology">Radiology Referral</option>
-                        <option value="bloodtest">Blood Test Referral</option>
+                        <option value="radiology">General Radiology Referral</option>
+                        <option value="mri">MRI Request</option>
+                        <option value="endoscopy">Endoscopy Request</option>
+                        <option value="bloodtest" selected>Blood Test Referral</option>
                     </select>
                 </div>
                 
@@ -77,7 +84,7 @@
                     <label for="messageCount" class="block text-gray-700 font-semibold mb-2">Number of Messages:</label>
                     <select id="messageCount" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:outline-none focus:border-blue-500 transition duration-300">
                         <option value="1">1</option>
-                        <option value="3" selected>3</option>
+                        <option value="3">3</option>
                         <option value="5">5</option>
                         <option value="10">10</option>
                     </select>
@@ -104,20 +111,27 @@
     <script>
         // Global counters for statistics
         let radiologyCount = 0;
+        let mriCount = 0;
+        let endoscopyCount = 0;
         let bloodTestCount = 0;
-        let totalCount = 0;
+        let totalCount = 0; // Keeping total for overall count
 
         // Global array to store generated XML messages in memory
         // Each item will be an object: { content: xmlString, filename: string }
         let generatedMessages = [];
 
         /**
-         * Updates the displayed statistics (radiology, blood test, and total counts).
+         * Updates the displayed statistics (radiology, MRI, endoscopy, blood test, and total counts).
          */
         function updateStats() {
             document.getElementById('radiologyCount').textContent = radiologyCount;
+            document.getElementById('mriCount').textContent = mriCount;
+            document.getElementById('endoscopyCount').textContent = endoscopyCount;
             document.getElementById('bloodTestCount').textContent = bloodTestCount;
-            document.getElementById('totalCount').textContent = totalCount;
+            // Recalculate total count based on individual counts
+            totalCount = radiologyCount + mriCount + endoscopyCount + bloodTestCount;
+            // document.getElementById('totalCount').textContent = totalCount; // If you want to show a combined total
+
             // Enable or disable the download all button based on whether messages exist
             const downloadAllBtn = document.getElementById('downloadAllBtn');
             if (totalCount > 0) {
@@ -231,8 +245,7 @@
         }
 
         /**
-         * Generates an HL7 ORM_O01 message for a Radiology Referral.
-         * Includes MSH, PID, PV1, ORC, and OBR segments with random data.
+         * Generates an HL7 ORM_O01 message for a General Radiology Referral (non-MRI).
          * @param {object} patient - Patient data.
          * @param {string} hospital - Hospital name.
          * @returns {string} The HL7 XML message.
@@ -241,22 +254,20 @@
             const examTypes = [
                 {code: 'CXR', name: 'Chest X-Ray', reason: 'Persistent cough, rule out pneumonia.', loinc: '20509-3'},
                 {code: 'CTH', name: 'CT Head', reason: 'Sudden onset severe headache, rule out bleed.', loinc: '87449-1'},
-                {code: 'MRI', name: 'MRI Lumbar Spine', reason: 'Chronic lower back pain with radiculopathy.', loinc: '20275-1'},
                 {code: 'USS', name: 'Ultrasound Abdomen', reason: 'Right upper quadrant pain, suspected gallstones.', loinc: '17926-2'},
                 {code: 'XRK', name: 'X-Ray Knee', reason: 'Acute knee injury post fall, assess for fracture.', loinc: '18029-4'},
                 {code: 'MAMMO', name: 'Mammogram', reason: 'Breast lump for further investigation.', loinc: '24606-5'},
                 {code: 'CTAB', name: 'CT Abdomen/Pelvis', reason: 'Unexplained weight loss and abdominal discomfort.', loinc: '87448-3'},
-                {code: 'CTCH', name: 'CT Chest', reason: 'Follow-up for lung nodule.', loinc: '26248-4'},
-                {code: 'MRIA', name: 'MRI Ankle', reason: 'Ankle pain and swelling after sports injury.', loinc: '20272-8'}
+                {code: 'CTCH', name: 'CT Chest', reason: 'Follow-up for lung nodule.', loinc: '26248-4'}
             ];
             
             const exam = examTypes[Math.floor(Math.random() * examTypes.length)];
-            const messageId = generateRandomDateTime() + generateRandomId(3); // Unique message ID
-            const placerOrderNumber = 'RAD' + generateRandomId(10); // Order ID from ordering system
-            const fillerOrderNumber = ''; // Filler order number assigned by performing system
+            const messageId = generateRandomDateTime() + generateRandomId(3);
+            const placerOrderNumber = 'RAD' + generateRandomId(10);
+            const fillerOrderNumber = '';
             const orderingProvider = generateRandomProvider();
             
-            return `<!-- HL7 ORM_O01 Message for Radiology Referral -->
+            return `<!-- HL7 ORM_O01 Message for General Radiology Referral -->
 <ORM_O01>
     <MSH>
         <MSH.1>|</MSH.1>
@@ -333,8 +344,201 @@
         }
 
         /**
+         * Generates an HL7 ORM_O01 message for an MRI Request.
+         * @param {object} patient - Patient data.
+         * @param {string} hospital - Hospital name.
+         * @returns {string} The HL7 XML message.
+         */
+        function generateMRIMessage(patient, hospital) {
+            const mriTypes = [
+                {code: 'MRI_BRAIN', name: 'MRI Brain', reason: 'Evaluation of persistent headaches and neurological symptoms.', loinc: '20271-0'},
+                {code: 'MRI_LSPINE', name: 'MRI Lumbar Spine', reason: 'Chronic lower back pain with suspected disc herniation.', loinc: '20275-1'},
+                {code: 'MRI_KNEE', name: 'MRI Knee', reason: 'Knee pain and instability after sports injury, suspected ligament tear.', loinc: '20274-4'},
+                {code: 'MRI_SHOULDER', name: 'MRI Shoulder', reason: 'Shoulder pain and limited range of motion, suspected rotator cuff injury.', loinc: '20276-9'},
+                {code: 'MRI_ABDPEL', name: 'MRI Abdomen & Pelvis', reason: 'Further investigation of abdominal mass identified on ultrasound.', loinc: '87448-3'}
+            ];
+            
+            const mriExam = mriTypes[Math.floor(Math.random() * mriTypes.length)];
+            const messageId = generateRandomDateTime() + generateRandomId(3);
+            const placerOrderNumber = 'MRI' + generateRandomId(10);
+            const fillerOrderNumber = '';
+            const orderingProvider = generateRandomProvider();
+            
+            return `<!-- HL7 ORM_O01 Message for MRI Request -->
+<ORM_O01>
+    <MSH>
+        <MSH.1>|</MSH.1>
+        <MSH.2>^~\\&amp;</MSH.2>
+        <MSH.3><HD.1>ORDERING_APP</HD.1></MSH.3>
+        <MSH.4><HD.1>${hospital}</HD.1><HD.2>921</HD.2><HD.3>HIPE</HD.3></MSH.4>
+        <MSH.5><HD.1>HealthLink</HD.1></MSH.5>
+        <MSH.6><HD.1>HSE</HD.1></MSH.6>
+        <MSH.7><TS.1>${generateRandomDateTime()}</TS.1></MSH.7>
+        <MSH.8/>
+        <MSH.9><MSG.1>ORM</MSG.1><MSG.2>O01</MSG.2><MSG.3>ORM_O01</MSG.3></MSH.9>
+        <MSH.10>${messageId}</MSH.10>
+        <MSH.11><PT.1>P</PT.1></MSH.11>
+        <MSH.12><VID.1>2.4</VID.1></MSH.12>
+    </MSH>
+    <ORM_O01.PATIENT>
+        <PID>
+            <PID.3><CX.1>${patient.id}</CX.1><CX.4><HD.1>${hospital}</HD.1></CX.4><CX.5>MRN</CX.5></PID.3>
+            <PID.5><XPN.1><FN.1>${patient.lastName}</FN.1></XPN.1><XPN.2>${patient.firstName}</XPN.2></PID.5>
+            <PID.7><TS.1>${patient.birthDate}</TS.1></PID.7>
+            <PID.8>${patient.gender}</PID.8>
+            <PID.11>
+                <XAD.1><SAD.1>${patient.address}</SAD.1></XAD.1>
+                <XAD.2>${patient.city}</XAD.2>
+                <XAD.3>${patient.county}</XAD.3>
+                <XAD.4>${patient.county}</XAD.4>
+                <XAD.5>${patient.postcode}</XAD.5>
+            </PID.11>
+            <PID.13><XTN.1>${patient.phone}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>PH</XTN.3></PID.13>
+            <PID.13><XTN.1>${patient.mobile}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>CP</XTN.3></PID.13>
+        </PID>
+        <ORM_O01.PATIENT_VISIT>
+            <PV1>
+                <PV1.2>O</PV1.2>
+                <PV1.3><PL.1>RADIOLOGY</PL.1><PL.9>MRI Department</PL.9></PV1.3>
+            </PV1>
+        </ORM_O01.PATIENT_VISIT>
+    </ORM_O01.PATIENT>
+    <ORM_O01.ORDER>
+        <ORC>
+            <ORC.1>NW</ORC.1>
+            <ORC.2><EI.1>${placerOrderNumber}</EI.1></ORC.2>
+            <ORC.3><EI.1>${fillerOrderNumber}</EI.1></ORC.3>
+            <ORC.9><TS.1>${generateRandomDateTime()}</TS.1></ORC.9>
+            <ORC.12>
+                <XCN.1>${orderingProvider.id}</XCN.1>
+                <XCN.2>${orderingProvider.lastName}</XCN.2>
+                <XCN.3>${orderingProvider.firstName}</XCN.3>
+                <XCN.4>${orderingProvider.title}</XCN.4>
+                <XCN.9>${orderingProvider.specialty}</XCN.9>
+            </ORC.12>
+        </ORC>
+        <ORM_O01.ORDER_DETAIL>
+            <OBR>
+                <OBR.1>1</OBR.1>
+                <OBR.2><EI.1>${placerOrderNumber}</EI.1></OBR.2>
+                <OBR.3><EI.1>${fillerOrderNumber}</EI.1></OBR.3>
+                <OBR.4><CE.1>${mriExam.loinc}</CE.1><CE.2>${mriExam.name}</CE.2><CE.3>LN</CE.3><CE.4>${mriExam.code}</CE.4></OBR.4>
+                <OBR.6>R</OBR.6>
+                <OBR.7><TS.1>${generateRandomDateTime()}</TS.1></OBR.7>
+                <OBR.13><CE.1>CLINICAL_INDICATION</CE.1><CE.2>${mriExam.reason}</CE.2><CE.3>L</CE.3></OBR.13>
+                <OBR.16>
+                    <XCN.1>${orderingProvider.id}</XCN.1>
+                    <XCN.2>${orderingProvider.lastName}</XCN.2>
+                    <XCN.3>${orderingProvider.firstName}</XCN.3>
+                    <XCN.4>${orderingProvider.title}</XCN.4>
+                    <XCN.9>${orderingProvider.specialty}</XCN.9>
+                </OBR.16>
+                <OBR.24>RAD</OBR.24>
+            </OBR>
+        </ORM_O01.ORDER_DETAIL>
+    </ORM_O01.ORDER>
+</ORM_O01>`;
+        }
+
+        /**
+         * Generates an HL7 ORM_O01 message for an Endoscopy Request.
+         * @param {object} patient - Patient data.
+         * @param {string} hospital - Hospital name.
+         * @returns {string} The HL7 XML message.
+         */
+        function generateEndoscopyMessage(patient, hospital) {
+            const endoscopyTypes = [
+                {code: 'COLON', name: 'Colonoscopy', reason: 'Investigation of lower GI bleeding and change in bowel habits.', loinc: '20268-6'},
+                {code: 'OGD', name: 'OesophagoGastroDuodenoscopy (OGD)', reason: 'Investigation of dysphagia and persistent dyspepsia.', loinc: '20270-2'},
+                {code: 'BRONCH', name: 'Bronchoscopy', reason: 'Investigation of persistent cough and abnormal chest imaging.', loinc: '20267-8'},
+                {code: 'ERCP', name: 'ERCP (Endoscopic Retrograde Cholangiopancreatography)', reason: 'Evaluation of obstructive jaundice.', loinc: '20269-4'},
+                {code: 'FLEXSIG', name: 'Flexible Sigmoidoscopy', reason: 'Screening for colorectal cancer, family history of polyps.', loinc: '20273-6'}
+            ];
+            
+            const endoscopyExam = endoscopyTypes[Math.floor(Math.random() * endoscopyTypes.length)];
+            const messageId = generateRandomDateTime() + generateRandomId(3);
+            const placerOrderNumber = 'ENDO' + generateRandomId(10);
+            const fillerOrderNumber = '';
+            const orderingProvider = generateRandomProvider();
+            
+            return `<!-- HL7 ORM_O01 Message for Endoscopy Request -->
+<ORM_O01>
+    <MSH>
+        <MSH.1>|</MSH.1>
+        <MSH.2>^~\\&amp;</MSH.2>
+        <MSH.3><HD.1>ORDERING_APP</HD.1></MSH.3>
+        <MSH.4><HD.1>${hospital}</HD.1><HD.2>921</HD.2><HD.3>HIPE</HD.3></MSH.4>
+        <MSH.5><HD.1>HealthLink</HD.1></MSH.5>
+        <MSH.6><HD.1>HSE</HD.1></MSH.6>
+        <MSH.7><TS.1>${generateRandomDateTime()}</TS.1></MSH.7>
+        <MSH.8/>
+        <MSH.9><MSG.1>ORM</MSG.1><MSG.2>O01</MSG.2><MSG.3>ORM_O01</MSG.3></MSH.9>
+        <MSH.10>${messageId}</MSH.10>
+        <MSH.11><PT.1>P</PT.1></MSH.11>
+        <MSH.12><VID.1>2.4</VID.1></MSH.12>
+    </MSH>
+    <ORM_O01.PATIENT>
+        <PID>
+            <PID.3><CX.1>${patient.id}</CX.1><CX.4><HD.1>${hospital}</HD.1></CX.4><CX.5>MRN</CX.5></PID.3>
+            <PID.5><XPN.1><FN.1>${patient.lastName}</FN.1></XPN.1><XPN.2>${patient.firstName}</XPN.2></PID.5>
+            <PID.7><TS.1>${patient.birthDate}</TS.1></PID.7>
+            <PID.8>${patient.gender}</PID.8>
+            <PID.11>
+                <XAD.1><SAD.1>${patient.address}</SAD.1></XAD.1>
+                <XAD.2>${patient.city}</XAD.2>
+                <XAD.3>${patient.county}</XAD.3>
+                <XAD.4>${patient.county}</XAD.4>
+                <XAD.5>${patient.postcode}</XAD.5>
+            </PID.11>
+            <PID.13><XTN.1>${patient.phone}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>PH</XTN.3></PID.13>
+            <PID.13><XTN.1>${patient.mobile}</XTN.1><XTN.2>PRN</XTN.2><XTN.3>CP</XTN.3></PID.13>
+        </PID>
+        <ORM_O01.PATIENT_VISIT>
+            <PV1>
+                <PV1.2>O</PV1.2>
+                <PV1.3><PL.1>ENDOSCOPY</PL.1><PL.9>Endoscopy Unit</PL.9></PV1.3>
+            </PV1>
+        </ORM_O01.PATIENT_VISIT>
+    </ORM_O01.PATIENT>
+    <ORM_O01.ORDER>
+        <ORC>
+            <ORC.1>NW</ORC.1>
+            <ORC.2><EI.1>${placerOrderNumber}</EI.1></ORC.2>
+            <ORC.3><EI.1>${fillerOrderNumber}</EI.1></ORC.3>
+            <ORC.9><TS.1>${generateRandomDateTime()}</TS.1></ORC.9>
+            <ORC.12>
+                <XCN.1>${orderingProvider.id}</XCN.1>
+                <XCN.2>${orderingProvider.lastName}</XCN.2>
+                <XCN.3>${orderingProvider.firstName}</XCN.3>
+                <XCN.4>${orderingProvider.title}</XCN.4>
+                <XCN.9>${orderingProvider.specialty}</XCN.9>
+            </ORC.12>
+        </ORC>
+        <ORM_O01.ORDER_DETAIL>
+            <OBR>
+                <OBR.1>1</OBR.1>
+                <OBR.2><EI.1>${placerOrderNumber}</EI.1></OBR.2>
+                <OBR.3><EI.1>${fillerOrderNumber}</EI.1></OBR.3>
+                <OBR.4><CE.1>${endoscopyExam.loinc}</CE.1><CE.2>${endoscopyExam.name}</CE.2><CE.3>LN</CE.3><CE.4>${endoscopyExam.code}</CE.4></OBR.4>
+                <OBR.6>R</OBR.6>
+                <OBR.7><TS.1>${generateRandomDateTime()}</TS.1></OBR.7>
+                <OBR.13><CE.1>CLINICAL_INDICATION</CE.1><CE.2>${endoscopyExam.reason}</CE.2><CE.3>L</CE.3></OBR.13>
+                <OBR.16>
+                    <XCN.1>${orderingProvider.id}</XCN.1>
+                    <XCN.2>${orderingProvider.lastName}</XCN.2>
+                    <XCN.3>${orderingProvider.firstName}</XCN.3>
+                    <XCN.4>${orderingProvider.title}</XCN.4>
+                    <XCN.9>${orderingProvider.specialty}</XCN.9>
+                </OBR.16>
+                <OBR.24>ENDO</OBR.24>
+            </OBR>
+        </ORM_O01.ORDER_DETAIL>
+    </ORM_O01.ORDER>
+</ORM_O01>`;
+        }
+
+        /**
          * Generates an HL7 ORM_O01 message for a Blood Test Referral.
-         * Includes MSH, PID, PV1, ORC, and OBR segments with random data.
          * @param {object} patient - Patient data.
          * @param {string} hospital - Hospital name.
          * @returns {string} The HL7 XML message.
@@ -455,7 +659,6 @@
         /**
          * Downloads the XML content stored at a specific index in the generatedMessages array.
          * @param {number} index - The index of the XML content in the generatedMessages array.
-         * @param {string} filename - The desired filename for the downloaded file.
          */
         function downloadXMLByIndex(index) {
             const messageData = generatedMessages[index];
@@ -508,8 +711,9 @@
             // Clear previous messages and reset the global array for new generation
             generatedMessages = []; 
             radiologyCount = 0;
+            mriCount = 0;
+            endoscopyCount = 0;
             bloodTestCount = 0;
-            totalCount = 0;
             updateStats(); // Update stats to 0 immediately and disable button
 
             // Show loading spinner and message
@@ -529,17 +733,31 @@
                     let xmlContent;
                     let messageTitle;
                     
-                    if (messageType === 'radiology') {
-                        xmlContent = generateRadiologyMessage(patient, hospital);
-                        messageTitle = `Radiology Referral - ${patient.lastName}, ${patient.firstName}`;
-                        radiologyCount++;
-                    } else { // messageType === 'bloodtest'
-                        xmlContent = generateBloodTestMessage(patient, hospital);
-                        messageTitle = `Blood Test Referral - ${patient.lastName}, ${patient.firstName}`;
-                        bloodTestCount++;
+                    switch (messageType) {
+                        case 'radiology':
+                            xmlContent = generateRadiologyMessage(patient, hospital);
+                            messageTitle = `General Radiology Referral - ${patient.lastName}, ${patient.firstName}`;
+                            radiologyCount++;
+                            break;
+                        case 'mri':
+                            xmlContent = generateMRIMessage(patient, hospital);
+                            messageTitle = `MRI Request - ${patient.lastName}, ${patient.firstName}`;
+                            mriCount++;
+                            break;
+                        case 'endoscopy':
+                            xmlContent = generateEndoscopyMessage(patient, hospital);
+                            messageTitle = `Endoscopy Request - ${patient.lastName}, ${patient.firstName}`;
+                            endoscopyCount++;
+                            break;
+                        case 'bloodtest':
+                            xmlContent = generateBloodTestMessage(patient, hospital);
+                            messageTitle = `Blood Test Referral - ${patient.lastName}, ${patient.firstName}`;
+                            bloodTestCount++;
+                            break;
+                        default:
+                            console.error("Unknown message type selected.");
+                            continue; // Skip this iteration if type is unknown
                     }
-                    
-                    totalCount++;
                     
                     // Create a unique filename for each message
                     const filename = `${messageType}_referral_${patient.id}_${Date.now()}.xml`;
